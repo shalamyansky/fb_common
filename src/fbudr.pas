@@ -225,15 +225,14 @@ TBwrResultSet = class( IExternalResultSetImpl )
   private
 
     fSelectiveProcedure : TBwrSelectiveProcedure;
-
-    function GetRoutineContext():TRoutineContext;
+    fRoutineContext     : TRoutineContext;
 
   public
 
     property SelectiveProcedure : TBwrSelectiveProcedure read fSelectiveProcedure;
-    property RoutineContext     : TRoutineContext  read GetRoutineContext;
+    property RoutineContext     : TRoutineContext        read fRoutineContext;
 
-    constructor Create( ASelectiveProcedure:TBwrSelectiveProcedure; AStatus:IStatus ); virtual;
+    constructor Create( ASelectiveProcedure:TBwrSelectiveProcedure; AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER ); virtual;
 
     procedure dispose(); override;
 
@@ -1002,29 +1001,28 @@ end;{ TBwrProcedure.open }
 function TBwrSelectiveProcedure.open( AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER ):IExternalResultSet;
 begin
     inherited open( AStatus, AContext, aInMsg, aOutMsg );
-    Result := TBwrResultSet.Create( Self, AStatus );
+    Result := TBwrResultSet.Create( Self, AStatus, AContext, AInMsg, AOutMsg );
 end;{ TBwrSelectiveProcedure.open }
 
 { TBwrResultSet }
 
-constructor TBwrResultSet.Create( ASelectiveProcedure:TBwrSelectiveProcedure; AStatus:IStatus );
+constructor TBwrResultSet.Create( ASelectiveProcedure:TBwrSelectiveProcedure; AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER );
 begin
     inherited Create;
     fSelectiveProcedure := ASelectiveProcedure;
+    fRoutineContext     := TRoutineContext.Create(
+        ASelectiveProcedure.fRoutineMetadata
+      , AStatus
+      , AContext
+      , aInMsg
+      , aOutMsg
+    );
 end;{ TBwrResultSet.Create }
 
 procedure TBwrResultSet.dispose();
 begin
     Destroy;
 end;{ TBwrResultSet.dispose }
-
-function TBwrResultSet.GetRoutineContext():TRoutineContext;
-begin
-    Result := nil;
-    if( fSelectiveProcedure <> nil )then begin
-        Result := fSelectiveProcedure.RoutineContext;
-    end;
-end;{ TBwrResultSet.GetRoutineContext }
 
 function TBwrResultSet.fetch( AStatus:IStatus ):BOOLEAN;
 begin
