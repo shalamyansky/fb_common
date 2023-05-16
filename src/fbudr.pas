@@ -655,8 +655,10 @@ begin
                 end;
             end;
         finally
-            MessageMetadata.release;
-            MessageMetadata := nil;
+            if( MessageMetadata <> nil )then begin
+                MessageMetadata.release;
+                MessageMetadata := nil;
+            end;
         end;
 
     end;
