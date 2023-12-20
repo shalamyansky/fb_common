@@ -1,7 +1,7 @@
 (*
     Unit     : fbudr
     Date     : 2022-09-09
-    Compiler : Delphi XE3
+    Compiler : Delphi XE3, Delphi 12
     Author   : Shalamyansky Mikhail Arkadievich
     Contents : Firebird UDR helper classes and utilities
     Project  : https://github.com/shalamyansky/fb_common
