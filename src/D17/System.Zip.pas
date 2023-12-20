@@ -4,6 +4,9 @@
 {--------------------------------------------------------------------------------}
 { shalamyansky | 2017-11-05 | Open method changed | allow concurrent zip reading }
 {--------------------------------------------------------------------------------}
+{   Use this unit instead of the one supplied, at least until Delphi XE3.        }
+{ Unit System.Zip included with Delphi 12 already does the job correctly.        }
+{--------------------------------------------------------------------------------}
 
 {*******************************************************}
 {                                                       }
