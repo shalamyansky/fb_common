@@ -13,12 +13,10 @@ interface
 
 uses
     SysUtils
-  , Windows
 ;
 
-function MAKEINT64( lo, hi : DWORD ):INT64;
+function MAKEINT64( lo, hi : LONGWORD ):INT64;
 function IfString( Condition:BOOLEAN; TrueValue:UnicodeString; FalseValue:UnicodeString = '' ):UnicodeString;
-function GetFileSize( Handle:THandle ):INT64; overload;
 function FileToBytes( Handle:THandle; out Content:TBytes ):BOOLEAN; overload;
 function FileToBytes( FilePath:UnicodeString; out Content:TBytes ):BOOLEAN; overload;
 function ReadFile( Path:UnicodeString; out Content:TBytes ):BOOLEAN;
@@ -31,7 +29,7 @@ uses
     System.Zip
 ;
 
-function MAKEINT64( lo, hi : DWORD ):INT64;
+function MAKEINT64( lo, hi : LONGWORD ):INT64;
 begin
     Result := INT64( lo ) or ( INT64( hi ) shl 32 );
 end;{ MAKEINT64 }
@@ -45,17 +43,6 @@ begin
     end;
 end;{ IfString }
 
-function GetFileSize( Handle:THandle ):INT64; overload;
-var
-    SizeLow, SizeHigh : DWORD;
-begin
-    Result  := -1;
-    SizeLow := Windows.GetFileSize( Handle, @SizeHigh );
-    if( SizeLow <> $FFFFFFFF )then begin
-        Result := MAKEINT64( SizeLow, SizeHigh );
-    end;
-end;{ GetFileSize }
-
 function FileToBytes( Handle:THandle; out Content:TBytes ):BOOLEAN; overload;
 var
     Size : LONGINT;
@@ -64,8 +51,9 @@ begin
     System.Finalize( Content );
     if( Handle >= 0 )then begin
         Result := TRUE;
-        Size   := GetFileSize( Handle );
+        Size   := SysUtils.FileSeek( Handle, 0, 2 );
         if( Size > 0 )then begin
+          SysUtils.FileSeek( Handle, 0, 0 ); //return to the beginning of the file
             SetLength( Content, Size );
             Result := ( Size = SysUtils.FileRead( Handle, POINTER( Content )^, Size ) );
             if( not Result )then begin
@@ -73,7 +61,7 @@ begin
             end;
         end;
     end;
-end;{ FileToString }
+end;{ FileToBytes }
 
 function FileToBytes( FilePath:UnicodeString; out Content:TBytes ):BOOLEAN; overload;
 var
@@ -118,24 +106,32 @@ begin
 end;{ ReadZipEntry }
 
 function ReadFile( Path:UnicodeString; out Content:TBytes ):BOOLEAN;
+const
+  {$IFDEF MSWINDOWS}
+    trueSlash = '\';
+    wrngSlash = '/';
+  {$ELSE}
+    trueSlash = '/';
+    wrngSlash = '\';
+  {$ENDIF}
 var
     FileName, Tail : UnicodeString;
 begin
     Result := FALSE;
     System.Finalize( Content );
     Tail := '';
-    Path := StringReplace( Path, '/', '\', [ rfReplaceAll ] );
+    Path := StringReplace( Path, wrngSlash, trueSlash, [ rfReplaceAll ] );
     while( TRUE )do begin
-        if( ( Path = '' ) or DirectoryExists( Path ) )then begin
+        if( ( Path = '' ) or DirectoryExists( Path ) )then begin  //Path is directory - nothing to do
             break;
-        end else if( FileExists( Path ) )then begin
+        end else if( FileExists( Path ) )then begin               //Path is file - read it
             if( Tail = '' )then begin
                 Result := FileToBytes( Path, Content );
             end else begin
                 Result := ReadZipEntry( Path, Tail, Content );
             end;
             break;
-        end else begin
+        end else begin                                            //Path does not exist - maybe it is archive inside?
             FileName := SysUtils.ExtractFileName( Path );
             if( FileName = '' )then begin
                 break;
