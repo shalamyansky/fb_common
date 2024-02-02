@@ -216,7 +216,13 @@ TBwrProcedure = class( IExternalProcedureImpl )
 
 end;{ TBwrProcedure }
 
+TBwrResultSet      = class;
+TBwrResultSetClass = class of TBwrResultSet;
+
 TBwrSelectiveProcedure = class( TBwrProcedure )
+  protected
+    class function GetBwrResultSetClass:TBwrResultSetClass; virtual; abstract;
+  public
     function open( AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER ):IExternalResultSet; override;
 end;{ TBwrSelectiveProcedure }
 
@@ -227,12 +233,15 @@ TBwrResultSet = class( IExternalResultSetImpl )
     fSelectiveProcedure : TBwrSelectiveProcedure;
     fRoutineContext     : TRoutineContext;
 
+    function GetRoutineContext():TRoutineContext;
+
   public
 
     property SelectiveProcedure : TBwrSelectiveProcedure read fSelectiveProcedure;
-    property RoutineContext     : TRoutineContext        read fRoutineContext;
+    property RoutineContext     : TRoutineContext        read GetRoutineContext;
 
     constructor Create( ASelectiveProcedure:TBwrSelectiveProcedure; AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER ); virtual;
+    destructor  Destroy; override;
 
     procedure dispose(); override;
 
@@ -971,10 +980,7 @@ end;{ TBwrProcedure.Create }
 
 destructor TBwrProcedure.Destroy;
 begin
-    if( fRoutineContext <> nil )then begin
-        fRoutineContext.Free;
-        fRoutineContext := nil;
-    end;
+    FreeAndNil( fRoutineContext );
     inherited Destroy;
 end;{ TBwrProcedure.Destroy }
 
@@ -989,6 +995,8 @@ end;{ TBwrProcedure.getCharSet }
 
 function TBwrProcedure.open( AStatus:IStatus; AContext:IExternalContext; aInMsg:POINTER; aOutMsg:POINTER ):IExternalResultSet;
 begin
+    Result          := nil;
+    FreeAndNil( fRoutineContext );
     fRoutineContext := TRoutineContext.Create(
         fRoutineMetadata
       , AStatus
@@ -1000,11 +1008,17 @@ end;{ TBwrProcedure.open }
 
 { TBwrSelectiveProcedure }
 
+{class function TBwrSelectiveProcedure.GetBwrResultSetClass:TBwrResultSetClass; virtual; abstract;
+begin
+    Result := TBwrResultSet;
+end;{ TBwrSelectiveProcedure.GetBwrResultSetClass }
+
 function TBwrSelectiveProcedure.open( AStatus:IStatus; AContext:IExternalContext; AInMsg:POINTER; AOutMsg:POINTER ):IExternalResultSet;
 begin
     inherited open( AStatus, AContext, aInMsg, aOutMsg );
-    Result := TBwrResultSet.Create( Self, AStatus, AContext, AInMsg, AOutMsg );
+    Result := GetBwrResultSetClass.Create( Self, AStatus, AContext, AInMsg, AOutMsg );
 end;{ TBwrSelectiveProcedure.open }
+
 
 { TBwrResultSet }
 
@@ -1012,14 +1026,20 @@ constructor TBwrResultSet.Create( ASelectiveProcedure:TBwrSelectiveProcedure; AS
 begin
     inherited Create;
     fSelectiveProcedure := ASelectiveProcedure;
-    fRoutineContext     := TRoutineContext.Create(
-        ASelectiveProcedure.fRoutineMetadata
-      , AStatus
-      , AContext
-      , aInMsg
-      , aOutMsg
-    );
 end;{ TBwrResultSet.Create }
+
+function TBwrResultSet.GetRoutineContext():TRoutineContext;
+begin
+    Result := nil;
+    if( fSelectiveProcedure <> nil )then begin
+        Result := fSelectiveProcedure.fRoutineContext;
+    end;
+end;{ TBwrResultSet.GetRoutineContext }
+
+destructor TBwrResultSet.Destroy;
+begin
+    inherited Destroy;
+end;{ TBwrResultSet.Destroy }
 
 procedure TBwrResultSet.dispose();
 begin
