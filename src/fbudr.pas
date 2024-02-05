@@ -1026,18 +1026,29 @@ constructor TBwrResultSet.Create( ASelectiveProcedure:TBwrSelectiveProcedure; AS
 begin
     inherited Create;
     fSelectiveProcedure := ASelectiveProcedure;
+    if( fSelectiveProcedure <> nil )then begin
+        fRoutineContext := TRoutineContext.Create(
+            fSelectiveProcedure.RoutineMetadata
+          , AStatus
+          , AContext
+          , aInMsg
+          , aOutMsg
+        );
+    end;
 end;{ TBwrResultSet.Create }
 
 function TBwrResultSet.GetRoutineContext():TRoutineContext;
 begin
-    Result := nil;
-    if( fSelectiveProcedure <> nil )then begin
-        Result := fSelectiveProcedure.fRoutineContext;
-    end;
+//    Result := nil;
+//    if( fSelectiveProcedure <> nil )then begin
+//        Result := fSelectiveProcedure.fRoutineContext;
+//    end;
+    Result := fRoutineContext;
 end;{ TBwrResultSet.GetRoutineContext }
 
 destructor TBwrResultSet.Destroy;
 begin
+    FreeAndNil( fRoutineContext );
     inherited Destroy;
 end;{ TBwrResultSet.Destroy }
 
@@ -1069,6 +1080,7 @@ begin
     AStatus := AStatus;
 end;{ TBwrFunctionFactory.setup }
 
+
 { TBwrFunction }
 
 constructor TBwrFunction.Create( RoutineMetadata:IRoutineMetadata );
@@ -1079,10 +1091,7 @@ end;{ TBwrProcedure.Create }
 
 destructor TBwrFunction.Destroy;
 begin
-    if( fRoutineContext <> nil )then begin
-        fRoutineContext.Free;
-        fRoutineContext := nil;
-    end;
+    FreeAndNil( fRoutineContext );
     inherited Destroy;
 end;{ TBwrFunction.Destroy }
 
@@ -1097,6 +1106,7 @@ end;{ TBwrFunction.getCharSet }
 
 procedure TBwrFunction.execute( AStatus:IStatus; AContext:IExternalContext; aInMsg:POINTER; aOutMsg:POINTER );
 begin
+    FreeAndNil( fRoutineContext );
     fRoutineContext := TRoutineContext.Create(
         fRoutineMetadata
       , AStatus
