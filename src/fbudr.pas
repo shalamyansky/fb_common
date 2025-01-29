@@ -12,8 +12,12 @@
 
     Denis Simonov. Firebird UDR writing in Pascal.
                    2019, IBSurgeon
-
 *)
+(* Changes:
+2025-01-29 ver. 2.1.4.0
+ - Attachment.createBlob creates now stream temporary blob;
+*)
+
 unit fbudr;
 
 interface
@@ -586,6 +590,12 @@ begin
 end;{ WriteBlobBytes }
 
 function WriteBlobBytes( Status:IStatus; Context:IExternalContext; pBlobId:ISC_QUADPtr; pBytes:PBYTE; bLength:LONGINT ):BOOLEAN;
+const
+    bpb : array[0..6] of BYTE = (
+        isc_bpb_version1
+      , isc_bpb_type,    1, isc_bpb_type_stream
+      , isc_bpb_storage, 1, isc_bpb_storage_temp
+    );
 var
     Attachment  : IAttachment;
     Transaction : ITransaction;
@@ -601,7 +611,7 @@ begin
             if( Attachment <> nil )then begin
                 Transaction := Context.getTransaction( Status );
                 if( Transaction <> nil )then begin
-                    Blob := Attachment.createBlob( Status, Transaction, pBlobId, 0, nil );
+                    Blob := Attachment.createBlob( Status, Transaction, pBlobId, SizeOf( bpb ), @bpb );
                     if( Blob <> nil )then begin
                         Result := WriteBlobBytes( Status, Blob, pBytes, bLength );
                         Blob.close( Status );
