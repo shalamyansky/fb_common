@@ -574,8 +574,8 @@ var
 begin
     Result := FALSE;
     if( ( Status <> nil ) and ( Blob <> nil ) )then begin
+        BufLen := BlobChunkSize;
         while( ( bLength > 0 ) and ( pBytes <> nil ) )do begin
-            BufLen := BlobChunkSize;
             if( BufLen  > bLength )then begin
                 BufLen := bLength;
             end;
