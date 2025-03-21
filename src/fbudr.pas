@@ -27,6 +27,10 @@ uses
   , Firebird
 ;
 
+const
+    MAX_ANSI_BYTES = 32765;
+    MAX_UTF8_BYTES = 32764;
+
 type
 
 //char(32767) character set WIN1251
@@ -88,14 +92,14 @@ procedure Finalize( var BlobId:ISC_QUAD ); overload;
 function CharToString( const v:CHAR_ANSI; Length:SMALLINT ):AnsiString;    overload;
 function CharToString( const v:CHAR_UTF8; Length:SMALLINT ):UnicodeString; overload;
 
-function StringToCharAnsi( const s:UnicodeString; Len:SMALLINT ):CHAR_ANSI;
-function StringToCharUtf8( const s:UnicodeString; Len:SMALLINT ):CHAR_UTF8;
+function StringToCharAnsi( const s:UnicodeString; MaxBytes:SMALLINT ):CHAR_ANSI;
+function StringToCharUtf8( const s:UnicodeString; MaxBytes:SMALLINT ):CHAR_UTF8;
 
 function VarcharToString( const v:VARCHAR_ANSI ):UnicodeString; overload;
 function VarcharToString( const v:VARCHAR_UTF8 ):UnicodeString; overload;
 
-function StringToVarcharAnsi( const s:UnicodeString; MaxLength:LONGINT = 32765 ):VARCHAR_ANSI;
-function StringToVarcharUtf8( const s:UnicodeString; MaxLength:LONGINT =  8191 ):VARCHAR_UTF8;
+function StringToVarcharAnsi( const s:UnicodeString; MaxBytes:LONGINT = MAX_ANSI_BYTES ):VARCHAR_ANSI;
+function StringToVarcharUtf8( const s:UnicodeString; MaxBytes:LONGINT = MAX_UTF8_BYTES ):VARCHAR_UTF8;
 
 function ReadBlobBytes( Status:IStatus; Blob:IBlob ):TBytes; overload;
 function ReadBlobBytes( Status:IStatus; Context:IExternalContext; BlobId:ISC_QUAD ):TBytes; overload;
@@ -145,7 +149,6 @@ const
 
     FB_CHARSET_UTF8     =     4;
     FB_CHARSET_WIN1251  =    52;
-
 
 type
 
@@ -320,6 +323,24 @@ begin
     PUINT64( @BlobId )^ := 0;
 end;{ Finalize }
 
+function Min( I1, I2 : LONGINT ):LONGINT;
+begin
+    if( I1 <= I2 )then begin
+        Result := I1;
+    end else begin
+        Result := I2;
+    end;
+end;{ Min }
+
+function Max( I1, I2 : LONGINT ):LONGINT;
+begin
+    if( I1 >= I2 )then begin
+        Result := I1;
+    end else begin
+        Result := I2;
+    end;
+end;{ Max }
+
 function CharToString( const v:CHAR_ANSI; Length:SMALLINT ):AnsiString;
 begin
     System.Finalize( Result );
@@ -354,16 +375,18 @@ begin
     end;
 end;{ Rightpad }
 
-function StringToCharAnsi( const s:UnicodeString; Len:SMALLINT ):CHAR_ANSI;
+function StringToCharAnsi( const s:UnicodeString; MaxBytes:SMALLINT ):CHAR_ANSI;
 var
-    AnsiStr : AnsiString;
+    AnsiStr   : AnsiString;
+    MaxLength : LONGINT;
 begin
     Finalize( Result );
-    if( ( Length( s ) = 0 ) or ( Len = 0 ) )then begin
+    if( ( Length( s ) = 0 ) or ( MaxBytes = 0 ) )then begin
         Result.Value[ 0 ] := AnsiChar( #32 );
     end else begin
-        AnsiStr := s;  //converts UTF16 -> ANSI
-        AnsiStr := Rightpad( Copy( AnsiStr, 1, Len ), Len, AnsiChar( #32 ) );
+        AnsiStr   := s;  //converts UTF16 -> ANSI
+        MaxLength := Min( MaxBytes, SizeOf( Result.Value ) );
+        AnsiStr   := Rightpad( Copy( AnsiStr, 1, MaxLength ), MaxLength, AnsiChar( #32 ) );
         if( Length( AnsiStr ) > 0 )then begin
             Move( POINTER( AnsiStr )^, Result.Value, Length( AnsiStr ) );
         end;
@@ -401,26 +424,25 @@ begin
     end;
 end;{ Truncate }
 
-function StringToCharUtf8( const s:UnicodeString; Len:SMALLINT ):CHAR_UTF8;
+function StringToCharUtf8( const s:UnicodeString; MaxBytes:SMALLINT ):CHAR_UTF8;
 var
-    TailLen : LONGINT;
-    Utf8Str, Tail : Utf8String;
+    U16Str    : UnicodeString;
+    Utf8Str   : Utf8String;
+    MaxLength : LONGINT;
 begin
     Finalize( Result );
     System.Finalize( Utf8Str );
-    if( ( Length( s ) = 0 ) or ( Len = 0 ) )then begin
-        Result.Value[ 0 ] := #32;
+    if( ( Length( s ) = 0 ) or ( MaxBytes = 0 ) )then begin
+        Result.Value[ 0 ] := AnsiChar( #32 );
     end else begin
-        Utf8Str := s;
-        if( Len  > SizeOf( Result ) )then begin
-            Len := SizeOf( Result );
+        U16Str    := s;
+        MaxLength := Min( MaxBytes, SizeOf( Result.Value ) ) div 4;
+        if( Length( U16Str ) > MaxLength )then begin
+            SetLength( U16Str, MaxLength );
+        end else if( Length( U16Str ) < MaxLength )then begin
+            U16Str  := U16Str + StringOfChar( #32, MaxLength - Length( U16Str ) );
         end;
-        Utf8Str := Truncate( Utf8Str, Len );
-        TailLen := Len - TEncoding.UTF8.GetByteCount( Utf8Str );
-        if( TailLen > 0 )then begin
-            Tail    := Utf8String( StringOfChar( #32, TailLen ) );
-            Utf8Str := Utf8Str + Tail;
-        end;
+        Utf8Str := U16Str;  //converts UTF16 -> UTF8
         if( Length( Utf8Str ) > 0 )then begin
             Move( POINTER( Utf8Str )^, Result.Value, TEncoding.UTF8.GetByteCount( Utf8Str ) );
         end;
@@ -461,36 +483,42 @@ begin
     end;
 end;{ VarcharToString }
 
-function StringToVarcharAnsi( const s:UnicodeString; MaxLength:LONGINT = 32765 ):VARCHAR_ANSI;
+function StringToVarcharAnsi( const s:UnicodeString; MaxBytes:LONGINT = MAX_ANSI_BYTES ):VARCHAR_ANSI;
 var
-    AnsiStr : AnsiString;
+    AnsiStr   : AnsiString;
+    MaxLength : LONGINT;
 begin
     Finalize( Result );
     if( Length( s ) > 0 )then begin
         AnsiStr := s;  //converts UTF16 -> ANSI
-        Result.Length := Length( AnsiStr );
-        if( Result.Length > MaxLength )then begin
-            Result.Length := MaxLength;
+        MaxLength := Min( MaxBytes, MAX_ANSI_BYTES );
+        if( Length( AnsiStr ) > MaxLength )then begin
+            SetLength( AnsiStr, MaxLength );
         end;
+        Result.Length := Length( AnsiStr );
         Move( POINTER( AnsiStr )^, Result.Value, Result.Length );
     end;
-end;{ StringToVarchar }
+end;{ StringToVarcharAnsi }
 
-function StringToVarcharUtf8( const s:UnicodeString; MaxLength:LONGINT =  8191 ):VARCHAR_UTF8;
+function StringToVarcharUtf8( const s:UnicodeString; MaxBytes:LONGINT = MAX_UTF8_BYTES ):VARCHAR_UTF8;
 var
-    Utf8Str : Utf8String;
+    U16Str    : UnicodeString;
+    Utf8Str   : Utf8String;
+    MaxLength : LONGINT;
 begin
     Finalize( Result );
     System.Finalize( Utf8Str );
+    U16Str := s;
     if( Length( s ) > 0 )then begin
-        Utf8Str := s;  //converts UTF16 -> UTF8
-        if( Length( Utf8Str ) > MaxLength )then begin
-            SetLength( Utf8Str, MaxLength );
+        MaxLength := Min( MaxBytes, MAX_UTF8_BYTES ) div 4;
+        if( Length( U16Str ) > MaxLength )then begin
+            SetLength( U16Str, MaxLength );
         end;
+        Utf8Str       := U16Str;  //converts UTF16 -> UTF8
         Result.Length := Length( Utf8Str );
         Move( POINTER( Utf8Str )^, Result.Value, TEncoding.UTF8.GetByteCount( Utf8Str ) );
     end;
-end;{ StringToVarchar }
+end;{ StringToVarcharUtf8 }
 
 function ReadBlobBytes( Status:IStatus; Blob:IBlob ):TBytes;
 const
@@ -918,11 +946,11 @@ begin
                     FillChar( pFieldData^, FieldMetadata.Length, 0 );
                     case FieldMetadata.CharSet of
                         FB_CHARSET_WIN1251 : begin
-                            v_ansi := StringToVarcharAnsi( Value, FieldMetadata.Length - SizeOf( SMALLINT ) );
+                            v_ansi := StringToVarcharAnsi( Value, FieldMetadata.Length(* - SizeOf( SMALLINT )*) );
                             Move( v_ansi, pFieldData^, SizeOf( v_ansi.Length ) + v_ansi.Length );
                         end;
                         FB_CHARSET_UTF8 : begin
-                            v_utf8 := StringToVarcharUtf8( Value, FieldMetadata.Length - SizeOf( SMALLINT ) );
+                            v_utf8 := StringToVarcharUtf8( Value, FieldMetadata.Length(* - SizeOf( SMALLINT )*) );
                             Move( v_utf8, pFieldData^, SizeOf( v_utf8.Length ) + v_utf8.Length );
                         end;
                     end;
