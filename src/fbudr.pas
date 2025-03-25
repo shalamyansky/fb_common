@@ -943,15 +943,14 @@ begin
                     end;
                 end;
                 FB_VARCHAR : begin
-                    FillChar( pFieldData^, FieldMetadata.Length, 0 );
                     case FieldMetadata.CharSet of
                         FB_CHARSET_WIN1251 : begin
-                            v_ansi := StringToVarcharAnsi( Value, FieldMetadata.Length(* - SizeOf( SMALLINT )*) );
-                            Move( v_ansi, pFieldData^, SizeOf( v_ansi.Length ) + v_ansi.Length );
+                            v_ansi := StringToVarcharAnsi( Value, FieldMetadata.Length );
+                            Move( v_ansi, pFieldData^, SizeOf( SMALLINT ) + FieldMetadata.Length );
                         end;
                         FB_CHARSET_UTF8 : begin
-                            v_utf8 := StringToVarcharUtf8( Value, FieldMetadata.Length(* - SizeOf( SMALLINT )*) );
-                            Move( v_utf8, pFieldData^, SizeOf( v_utf8.Length ) + v_utf8.Length );
+                            v_utf8 := StringToVarcharUtf8( Value, FieldMetadata.Length );
+                            Move( v_utf8, pFieldData^, SizeOf( SMALLINT ) + FieldMetadata.Length );
                         end;
                     end;
                 end;
@@ -1153,7 +1152,6 @@ begin
       , aOutMsg
     );
 end;{ TBwrFunction.execute }
-
 
 
 end.
